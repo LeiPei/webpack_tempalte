@@ -1,0 +1,7 @@
+.hello {
+  height: 200px;
+  width: 200px;
+  color: red;
+  background: url('../assets/RealWorld_Stonehenge.jpg');
+  background-size: cover;
+}
