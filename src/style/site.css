@@ -4,4 +4,10 @@
   color: red;
   background: url('../assets/RealWorld_Stonehenge.jpg');
   background-size: cover;
+  margin-bottom: 20px;
+}
+
+#map {
+  height: 800px;
+  margin-bottom: 20px;
 }
