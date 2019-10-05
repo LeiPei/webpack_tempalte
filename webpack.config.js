@@ -18,9 +18,6 @@ module.exports = {
     filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'dist')
   },
-  devServer: {
-    open: 'Google Chrome'
-  },
   plugins: [
     new webpack.ProvidePlugin({
       $: 'jquery',
@@ -54,6 +51,12 @@ module.exports = {
         use: [
           'file-loader'
         ]
+      },
+      {
+        enforce: "pre",
+        test: /\.js$/,
+        exclude: /node_modules/,
+        loader: "eslint-loader"
       },
       {
         test: /\.m?js$/,
