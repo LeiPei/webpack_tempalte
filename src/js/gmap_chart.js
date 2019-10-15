@@ -2,7 +2,7 @@ const echarts = require("echarts"); //eslint-disable-line
 
 let googleMaps = null;
 let Overlay;
-let overlay = null;
+let overlay = null; //eslint-disable-line
 let hasProjectionChanged = false;
 let mapInstance = null;
 let mapRoot = null;
@@ -105,76 +105,79 @@ class GMapCoordSys {
 
     this._api = api;
     this._overlay = overlay;
+  }
 
-    this.create = (ecModel, api) => {
-      let gmapCoordSys;
-      let root = api.getDom();
-    
-      ecModel.eachComponent('gmap', function (gmapModel) {
-        var viewportRoot = api.getZr().painter.getViewportRoot();
-        Overlay = Overlay || createOverlayCtor();
-        if (gmapCoordSys) {
-          throw new Error('Only one gmap component can exist');
+  static create(ecModel, api) {
+    let gmapCoordSys;
+    let root = api.getDom();
+  
+    ecModel.eachComponent('gmap', function (gmapModel) {
+      var viewportRoot = api.getZr().painter.getViewportRoot();
+      Overlay = Overlay || createOverlayCtor();
+      if (gmapCoordSys) {
+        throw new Error('Only one gmap component can exist');
+      }
+      var gmap = gmapModel.getGMap(); // google map instance
+      if (!gmap) {
+        var gmapRoot = root.querySelector('.ec-extension-gmap');
+        if (gmapRoot) {
+          viewportRoot.style.left = '0px';
+          viewportRoot.style.top = '0px';
+          root.removeChild(gmapRoot);
         }
-        var gmap = gmapModel.getGMap(); // google map instance
-        if (!gmap) {
-          var gmapRoot = root.querySelector('.ec-extension-gmap');
-          if (gmapRoot) {
-            viewportRoot.style.left = '0px';
-            viewportRoot.style.top = '0px';
-            root.removeChild(gmapRoot);
-          }
-          gmapRoot = document.createElement('div'); //eslint-disable-line
-          gmapRoot.style.cssText = 'width:100%;height:100%';
-    
-          gmapRoot.classList.add('ec-extension-gmap');
-          root.appendChild(gmapRoot);
-          // now create google map instance
-          gmap = new googleMaps.Map(gmapRoot, {
-            streetViewControl: true,
-            minZoom: null,
-            mapTypeControl: true,
-            gestureHandling: 'greedy',
-            styles: _COMMON_GOOGLE_MAP_STYLE
+        gmapRoot = document.createElement('div'); //eslint-disable-line
+        gmapRoot.style.cssText = 'width:100%;height:100%';
+  
+        gmapRoot.classList.add('ec-extension-gmap');
+        root.appendChild(gmapRoot);
+        // now create google map instance
+        gmap = new googleMaps.Map(gmapRoot, {
+          streetViewControl: true,
+          minZoom: null,
+          mapTypeControl: true,
+          gestureHandling: 'greedy',
+          styles: _COMMON_GOOGLE_MAP_STYLE
+        });
+        gmapModel.setGMap(gmap);
+        overlay = new Overlay(viewportRoot, api);
+        overlay.setMap(gmap);
+        gmap.addListener('center_changed', function() {
+         console.log('center change!');
+        });
+      }
+  
+      var center = gmapModel.get('center');
+      if (typeof center !== 'undefined') {
+        var point = new googleMaps.LatLng(center[1], center[0]);
+        gmap.setCenter(point);
+      }
+  
+      var zoom = gmapModel.get('zoom');
+      if (typeof zoom !== 'undefined') {
+        gmap.setZoom(zoom);
+      }
+  
+      gmapCoordSys = new GMapCoordSys(gmap, api, overlay);
+      gmapCoordSys.setMapOffset(gmapModel.getMapOffset());
+      if (!hasProjectionChanged) {
+          googleMaps.event.addListenerOnce(gmap, "projection_changed", function () {
+              gmapCoordSys.setZoom(zoom);
+              gmapCoordSys.setCenter(center);
+              hasProjectionChanged = true;
           });
-          gmapModel.setGMap(gmap);
-          overlay = new Overlay(viewportRoot, api);
-          overlay.setMap(gmap);
-        }
-    
-        var center = gmapModel.get('center');
-        if (typeof center !== 'undefined') {
-          var point = new googleMaps.LatLng(center[1], center[0]);
-          gmap.setCenter(point);
-        }
-    
-        var zoom = gmapModel.get('zoom');
-        if (typeof zoom !== 'undefined') {
-          gmap.setZoom(zoom);
-        }
-    
-        gmapCoordSys = new GMapCoordSys(gmap, api, overlay);
-        gmapCoordSys.setMapOffset(gmapModel.getMapOffset());
-        if (!hasProjectionChanged) {
-            googleMaps.event.addListenerOnce(gmap, "projection_changed", function () {
-                gmapCoordSys.setZoom(zoom);
-                gmapCoordSys.setCenter(center);
-                hasProjectionChanged = true;
-            });
-        } else {
-            gmapCoordSys.setZoom(zoom);
-            gmapCoordSys.setCenter(center);
-        }
-    
-        gmapModel.coordinateSystem = gmapCoordSys;
-      });
-    
-      ecModel.eachSeries(function (seriesModel) {
-        if (seriesModel.get('coordinateSystem') === 'gmap') {
-          seriesModel.coordinateSystem = gmapCoordSys;
-        }
-      });
-    }
+      } else {
+          gmapCoordSys.setZoom(zoom);
+          gmapCoordSys.setCenter(center);
+      }
+  
+      gmapModel.coordinateSystem = gmapCoordSys;
+    });
+  
+    ecModel.eachSeries(function (seriesModel) {
+      if (seriesModel.get('coordinateSystem') === 'gmap') {
+        seriesModel.coordinateSystem = gmapCoordSys;
+      }
+    });
   }
 
   setZoom(zoom) {
@@ -217,8 +220,12 @@ class GMapCoordSys {
   getRoamTransform() {
     return echarts.matrix.create();
   }
-  prepareCustoms() {}
+  prepareCustoms() {
+    return echarts.matrix.create();
+  }
 }
+
+GMapCoordSys.dimensions = ['lng', 'lat'];
 
 function createOverlayCtor() {
   function Overlay(root, api) {
@@ -246,6 +253,7 @@ function createOverlayCtor() {
   };
 
   Overlay.prototype.draw = function () {
+    console.log('draw');
     var transformStyle = this._root.parentNode.parentNode.style.transform.replace('translate(', '').replace(')', '');
     var dx = 0;
     var dy = 0;
@@ -268,6 +276,7 @@ function createOverlayCtor() {
       this._root.style.top = baseOffset[1] + dy + 'px';
     }
     mapOffset = [dx, dy];
+    // this will make Cord be created again, which then set center and then draw again ... infinite loop
     this._api.dispatchAction({
       type: 'gMapRoam'
     });
@@ -276,12 +285,121 @@ function createOverlayCtor() {
   return Overlay;
 }
 
-console.log(GMapCoordSys)
+function v2Equal(a, b) {
+  return a && b && a[0] === b[0] && a[1] === b[1];
+}
+
+echarts.extendComponentModel({
+
+  type: 'gmap',
+
+  getGMap: function () {
+      return mapInstance;
+  },
+
+  setGMap: function (gmap) {
+      mapInstance = gmap;
+  },
+
+  getGMapRoot: function () {
+      return mapRoot;
+  },
+
+  setGMapRoot: function (gMapRoot) {
+      mapRoot = gMapRoot;
+  },
+
+  getMapOffset: function () {
+      return mapOffset;
+  },
+
+  setMapOffset: function (offset) {
+      mapOffset = offset;
+  },
+
+  setCenterAndZoom: function (center, zoom) {
+      this.option.center = center;
+      this.option.zoom = zoom;
+  },
+
+  centerOrZoomChanged: function (center, zoom) {
+      var option = this.option;
+      return !(v2Equal(center, option.center) && zoom === option.zoom);
+  },
+
+  defaultOption: {
+      center: [-20, 30],
+      zoom: 2,
+      mapStyle: {}
+  }
+});
+
+echarts.extendComponentView({
+  type: 'gmap',
+
+  render: function (gMapModel) {
+      var MAX_ZOOM = 16;
+
+      var gmap = gMapModel.getGMap();
+
+      var originalStyle = gMapModel.__mapStyle;
+
+      var newMapStyle = gMapModel.get('mapStyle') || {};
+      // FIXME, Not use JSON methods
+      var mapStyleStr = JSON.stringify(newMapStyle);
+      if (JSON.stringify(originalStyle) !== mapStyleStr) {
+          if (Object.keys(newMapStyle).length) {
+              gmap.setOptions({
+                  styles: newMapStyle
+              });
+          }
+          gMapModel.__mapStyle = JSON.parse(mapStyleStr);
+      }
+
+      // if bounds has been specified use fitBounds to show a specific area of the map
+      // MAX_ZOOM is used to prevent map from showing only a point with a huge zoom value
+      if (typeof (gMapModel.__bounds) === 'undefined' && gMapModel.get('bounds')) {
+          googleMaps.event.addListenerOnce(gmap, 'bounds_changed', function () {
+              if (gmap.getZoom() > MAX_ZOOM) {
+                  gmap.setZoom(MAX_ZOOM);
+              }
+          });
+          gmap.fitBounds(gMapModel.get('bounds'));
+      }
+  },
+
+  dispose: function () {}
+});
 
 /**
  * GMap component extension
  */
-// echarts.registerCoordinateSystem('bmap', GMapCoordSys); // Action
+
+echarts.registerCoordinateSystem('gmap', GMapCoordSys);
+
+echarts.registerAction({
+  type: 'gMapRoam',
+  event: 'gMapRoam',
+  update: 'updateLayout'
+}, function (payload, ecModel) {
+    ecModel.eachComponent('gmap', function (gMapModel) {
+      var gmap = gMapModel.getGMap();
+      var center = gmap.getCenter();
+      gMapModel.setCenterAndZoom([center.lng(), center.lat()], gmap.getZoom());
+    });
+});
+
+echarts.registerAction({
+  type: 'gMapReady',
+  event: 'gMapReady',
+  update: 'updateLayout'
+}, function (payload, ecModel) {
+    ecModel.eachComponent('gmap', function (gMapModel) {
+      var gmap = gMapModel.getGMap();
+      var center = gmap.getCenter();
+      gMapModel.setCenterAndZoom([center.lng(), center.lat()], gmap.getZoom());
+    });
+});
 
 export function setGoogleMapApi(lib) {
   googleMaps = lib;
